@@ -4,7 +4,7 @@ Windows only - use WMIC to get the process tree
 
 ## Quick Start
 
-Install with `github.com/go-zero-boilerplate/wmic-proccess-tree`
+Install with `go get -u github.com/go-zero-boilerplate/wmic-proccess-tree`
 
 ```
 package main
