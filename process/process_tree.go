@@ -2,12 +2,12 @@ package process
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/go-zero-boilerplate/wmic-xml-command"
 )
 
 func LoadProcessTree(pid int) (*Process, error) {
@@ -36,61 +36,41 @@ func (p *Process) String() string {
 	return string(jsonBytes)
 }
 
-type commandXml struct {
-	Results []struct {
-		Properties []struct {
-			Name  string `xml:"NAME,attr"`
-			Value string `xml:"VALUE"`
-		} `xml:"PROPERTY"`
-	} `xml:"RESULTS>CIM>INSTANCE"`
-}
-
-func (p *Process) processXml(xmlData []byte, columnNames []string) (*commandXml, error) {
-	c := &commandXml{}
-	if err := xml.Unmarshal(xmlData, c); err != nil {
-		return nil, fmt.Errorf("Cannot unmarshal command xml, error: %s. Xml was: %s", err.Error(), string(xmlData))
-	}
-	return c, nil
-}
-
 func (p *Process) LoadChildren() error {
 	columnNames := []string{
 		"Caption",
 		"ProcessId",
 	}
 
-	out, err := exec.Command(
-		"wmic",
+	wmicArgs := []string{
 		"process",
 		"where",
 		fmt.Sprintf("(ParentProcessId=%d)", p.Process.Pid),
 		"get",
 		strings.Join(columnNames, ","),
-		"/FORMAT:RAWXML",
-	).CombinedOutput()
+	}
 
+	responseXml, err := wmic_command.Run(wmicArgs)
 	if err != nil {
-		return fmt.Errorf("Cannot find child processes. Error: %s. OUTPUT: %s", err.Error(), string(out))
-	}
-
-	outStrTrimmed := strings.TrimSpace(string(out))
-	if outStrTrimmed == "" {
-		return fmt.Errorf("Command returned empty response, cannot parse xml")
-	}
-	if !strings.HasPrefix(outStrTrimmed, "<") {
-		if strings.HasPrefix(outStrTrimmed, "No Instance(s) Available") {
-			//In this case the process does not have children processes
-			return nil
+		parseErr, ok := err.(*wmic_command.XmlParseError)
+		if !ok {
+			return fmt.Errorf("Cannot find child processes. Error: %s", err.Error())
 		}
-		return fmt.Errorf("Invalid xml returned from wmic command, xml was: %s", outStrTrimmed)
+
+		xmlTrimmed := strings.TrimSpace(string(parseErr.XmlContent))
+		if xmlTrimmed == "" {
+			return fmt.Errorf("Command returned empty response, cannot parse xml")
+		}
+		if !strings.HasPrefix(xmlTrimmed, "<") {
+			if strings.HasPrefix(xmlTrimmed, "No Instance(s) Available") {
+				//In this case the process does not have children processes
+				return nil
+			}
+			return fmt.Errorf("Invalid xml returned from wmic command, xml was: %s", xmlTrimmed)
+		}
 	}
 
-	x, err := p.processXml(out, columnNames)
-	if err != nil {
-		return fmt.Errorf("Unable to process xml, error: %s. Xml was: %s", err.Error(), string(out))
-	}
-
-	for _, res := range x.Results {
+	for _, res := range responseXml.Results {
 		var childProcId int64
 		for _, prop := range res.Properties {
 			if prop.Name == "ProcessId" {
