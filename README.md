@@ -7,17 +7,16 @@ Windows only - use WMIC to get the process tree
 Install with `go get -u github.com/go-zero-boilerplate/wmic-proccess-tree`
 
 ```
-package main
-
 import (
     "fmt"
     "log"
-    "github.com/golang-devops/exec-logger/process_tree"
+
+    "github.com/go-zero-boilerplate/wmic-proccess-tree/process"
 )
 
 func main() {
     procId := 123 //The process id you want to get the tree for
-    procTree, err := process_tree.LoadProcessTree(procId)
+    procTree, err := process.LoadProcessTree(procId)
     if err != nil {
         log.Fatal(err)
     }
