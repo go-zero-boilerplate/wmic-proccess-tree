@@ -38,7 +38,6 @@ func (p *Process) String() string {
 
 func (p *Process) LoadChildren() error {
 	columnNames := []string{
-		"Caption",
 		"ProcessId",
 	}
 
